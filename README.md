@@ -1,8 +1,8 @@
-# like-me-prank · 「喜不喜欢我？」
+# 强制-喜欢我（恶搞-游戏邀请函）
 
-A tiny single-file web prank: a cute "Do you like me?" page where every "No" makes the button shrink and the mascot sadder — until "Yes" launches a canvas fireworks page with a 王者荣耀-style "敌军还有 5 秒到达战场" countdown. Built for scanning a QR code in WeChat/QQ.
+A tiny single-file web prank game invite: a cute "Do you like me?" page where every "No" makes the button shrink and the mascot sadder — until "Yes" launches a canvas fireworks page with a 王者荣耀-style "敌军还有 5 秒到达战场" countdown. Built for scanning a QR code in WeChat/QQ.
 
-一个单文件网页小恶作剧：点「不喜欢」→ 表情越来越委屈、按钮越缩越小；点「喜欢我」→ 烟花页 +「敌军还有 5 秒到达战场」倒计时。原本是托管后生成二维码用微信扫码玩的。
+一个单文件网页小恶作剧（游戏邀请函）：点「不喜欢」→ 表情越来越委屈、按钮越缩越小；点「喜欢我」→ 烟花页 +「敌军还有 5 秒到达战场」倒计时。原本是托管后生成二维码用微信扫码玩的。
 
 ![screenshot](docs/screenshot.png)
 
@@ -53,7 +53,7 @@ python3 src/build.py        # 生成 docs/index.html
 ## 源码结构
 
 ```
-like-me-prank/
+forced-like-me/
   docs/index.html       ← 打包好的单文件网页（可直接托管，也是 GitHub Pages 的源）
   src/template.html     ← 页面模板（CSS/Canvas/逻辑）
   src/build.py          ← 把贴图 base64 内嵌进模板

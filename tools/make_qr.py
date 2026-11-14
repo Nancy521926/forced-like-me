@@ -2,7 +2,7 @@
 """把网页链接生成二维码 PNG（微信扫码玩）。
 
 用法：python3 tools/make_qr.py "https://你的链接"
-输出：web/qrcode.png
+输出：docs/qrcode.png
 """
 import os
 import sys
@@ -29,7 +29,7 @@ def main():
     qr.make(fit=True)
     img = qr.make_image(image_factory=PilImage, fill_color="#1b1035",
                         back_color="#fff4f9").convert("RGB")
-    out = os.path.join(ROOT, "web", "qrcode.png")
+    out = os.path.join(ROOT, "docs", "qrcode.png")
     img.save(out)
     print("已生成 %s (%dx%d)" % (out, img.size[0], img.size[1]))
     print("链接：%s" % url)

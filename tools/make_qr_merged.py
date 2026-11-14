@@ -2,7 +2,7 @@
 """把二维码「融合」进一张图：底部居中放奶油色圆角卡 + 深棕二维码（颜色取自底图）。
 
 用法：python3 tools/make_qr_merged.py "链接" "底图路径"
-输出：web/qrcode_merged.png
+输出：docs/qrcode_merged.png
 """
 import os
 import sys
@@ -12,7 +12,7 @@ from PIL import Image, ImageDraw
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
-OUT = os.path.join(ROOT, "web", "qrcode_merged.png")
+OUT = os.path.join(ROOT, "docs", "qrcode_merged.png")
 
 DARK = (77, 59, 47)        # 深暖棕（二维码块，取底图深色）
 CARD = (253, 250, 243)     # 奶油色卡片底（取底图亮色）

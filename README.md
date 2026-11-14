@@ -16,11 +16,11 @@ A tiny single-file web prank: a cute "Do you like me?" page where every "No" mak
 
 ### 本地直接玩
 
-双击 `web/index.html`，浏览器打开即可（贴图已全部 base64 内嵌，零外部依赖）。
+双击 `docs/index.html`，浏览器打开即可（贴图已全部 base64 内嵌，零外部依赖）。
 
 ### 托管 + 二维码
 
-1. 把 `web/` 传到任意静态托管（GitHub Pages / 自己的服务器 / 对象存储都行）
+1. 把 `docs/` 传到任意静态托管（GitHub Pages / 自己的服务器 / 对象存储都行；本仓库已配好 Pages，直接推 main 即可）
 2. 生成二维码：
 
 ```bash
@@ -30,7 +30,7 @@ python3 tools/make_qr.py "https://你的地址/"
 python3 tools/make_qr_merged.py "https://你的地址/" 底图.png
 ```
 
-产物在 `web/qrcode.png` / `web/qrcode_merged.png`（已 gitignore）。
+产物在 `docs/qrcode.png` / `docs/qrcode_merged.png`（已 gitignore）。
 
 ### 改台词 / 换表情
 
@@ -47,14 +47,14 @@ COUNTDOWN_FROM  = 5       # 倒计时秒数
 然后重新打包：
 
 ```bash
-python3 src/build.py        # 生成 web/index.html
+python3 src/build.py        # 生成 docs/index.html
 ```
 
 ## 源码结构
 
 ```
 like-me-prank/
-  web/index.html        ← 打包好的单文件网页（可直接托管）
+  docs/index.html       ← 打包好的单文件网页（可直接托管，也是 GitHub Pages 的源）
   src/template.html     ← 页面模板（CSS/Canvas/逻辑）
   src/build.py          ← 把贴图 base64 内嵌进模板
   assets/pet/           ← 主角表情 GIF

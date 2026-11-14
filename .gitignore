@@ -4,5 +4,5 @@ __pycache__/
 .venv/
 
 # 生成出来的二维码（含你自己的托管地址）
-web/qrcode.png
-web/qrcode_merged.png
+docs/qrcode.png
+docs/qrcode_merged.png

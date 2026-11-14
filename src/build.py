@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""把贴图/表情打成单文件网页 web/index.html（零外部依赖，方便托管 + 生成二维码）。
+"""把贴图/表情打成单文件网页 docs/index.html（零外部依赖，方便托管 + 生成二维码）。
 
 用法：python3 src/build.py
 """
@@ -12,7 +12,7 @@ ROOT = os.path.dirname(HERE)
 PET_DIR = os.path.join(ROOT, "assets", "pet")
 STICKER_DIR = os.path.join(ROOT, "assets", "sticker")
 TEMPLATE = os.path.join(HERE, "template.html")
-OUT = os.path.join(ROOT, "web", "index.html")
+OUT = os.path.join(ROOT, "docs", "index.html")
 
 # ----------------------------- 可调参数 -----------------------------
 # 主角表情：点一次「不喜欢」往后翻一张，台词跟着换；翻到最后一张就到底了

@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>喜不喜欢我？</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{width:100%;height:100vh;height:100dvh;overflow:hidden;touch-action:manipulation;-webkit-user-select:none;user-select:none}
+body{font-family:"PingFang SC","Microsoft YaHei","Hiragino Sans GB","Segoe UI",sans-serif;background:#fff4f9}
+/* ---------------- 问询页 ---------------- */
+#ask{position:fixed;top:0;left:0;right:0;bottom:0;width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;background:linear-gradient(#fff4f9,#ffc9de);transition:opacity .5s}
+#ask.gone{opacity:0;pointer-events:none}
+#ask #askCanvas{position:absolute;top:0;left:0;width:100%;height:100%;z-index:1}
+#ask>*{position:relative;z-index:2}
+.title{font-size:clamp(26px,8.5vw,38px);font-weight:800;color:#d6336c;text-shadow:0 0 8px #fff,0 0 8px #fff;letter-spacing:2px;margin-bottom:2px}
+.pet-wrap{position:relative}
+.pet-card{background:#fff;border:3px solid #ffd9e6;border-radius:24px;padding:8px;box-shadow:0 8px 22px rgba(214,51,108,.16)}
+.pet-card img{display:block;width:clamp(96px,30vw,140px);height:auto}
+.mood{position:absolute;top:-16px;right:-30px;font-size:27px}
+.btns{display:flex;gap:24px;margin-top:30px}
+.btn{border:2px solid #fff;border-radius:999px;cursor:pointer;padding:13px 32px;font-size:19px;font-weight:700;transform:scale(var(--s,1));box-shadow:0 5px 0 rgba(163,84,111,.35);outline:none}
+.btn:active{filter:brightness(.93)}
+#like{background:#ff7fae;color:#fff}
+#dislike{background:#f6c9dc;color:#8a5a72;font-weight:400}
+#dislike:disabled{background:#e8dce3;color:#a8979f;box-shadow:0 3px 0 rgba(163,84,111,.25)}
+.tip{margin-top:26px;font-size:13px;color:#b3728c}
+/* ---------------- 烟花页 ---------------- */
+#fw{position:fixed;top:0;left:0;right:0;bottom:0;display:none;width:100%;height:100%}
+</style>
+</head>
+<body>
+<div id="ask">
+  <canvas id="askCanvas"></canvas>
+  <div class="title" id="title">喜不喜欢我？</div>
+  <div class="pet-wrap">
+    <div class="pet-card"><img id="pet" alt=""></div>
+    <div class="mood" id="mood">💕</div>
+  </div>
+  <div class="btns">
+    <button class="btn" id="like">💗 喜欢我</button>
+    <button class="btn" id="dislike">不喜欢</button>
+  </div>
+  <div class="tip">只能选一个哦～</div>
+</div>
+<canvas id="fw"></canvas>
+<script>
+"use strict";
+var CFG = __CONFIG__;
+var A = CFG.assets;
+
+/* ================= 素材预载 ================= */
+var imgs = {};
+for (var k in A) {
+  var im = new Image();
+  im.src = A[k];
+  imgs[k] = im;
+}
+
+/* ================= 问询页 ================= */
+var ask = document.getElementById("ask");
+var askCv = document.getElementById("askCanvas");
+var actx = askCv.getContext("2d");
+var titleEl = document.getElementById("title");
+var petImg = document.getElementById("pet");
+var moodEl = document.getElementById("mood");
+var likeBtn = document.getElementById("like");
+var disBtn = document.getElementById("dislike");
+
+petImg.src = A[CFG.petFiles[0]];
+
+var dislikeClicks = 0, dislikeScale = 1;
+var DISLIKE_SHRINK = Math.pow(0.2, 1 / CFG.dislikeTexts.length);
+
+disBtn.addEventListener("click", function () {
+  dislikeClicks += 1;
+  var t = Math.min(dislikeClicks - 1, CFG.dislikeTexts.length - 1);
+  titleEl.textContent = CFG.dislikeTexts[t];
+  titleEl.style.color = (t === CFG.dislikeTexts.length - 1) ? "#e8477a" : "#d6336c";
+  var i = Math.min(dislikeClicks, CFG.dislikeTexts.length);
+  petImg.src = A[CFG.petFiles[i]];
+  moodEl.textContent = CFG.moodEmoji[i];
+  dislikeScale = Math.max(dislikeScale * DISLIKE_SHRINK, 0.2);
+  disBtn.style.setProperty("--s", dislikeScale.toFixed(3));
+  if (dislikeClicks >= CFG.petFiles.length) {
+    disBtn.disabled = true;
+    disBtn.textContent = "不";
+  }
+});
+
+likeBtn.addEventListener("click", function () {
+  ask.classList.add("gone");     // 问询页淡出，把舞台让给烟花页
+  startFireworks();
+});
+
+/* ----- 背景装饰：贴纸 emoji + 会闪的小星星（坐标按 620x460 的百分比折算） ----- */
+var DECO = [
+  ["🎀", 9.35, 13.0, 30],
+  ["🌸", 90.6, 15.7, 28],
+  ["💕", 11.6, 63.5, 22],
+  ["💗", 88.4, 54.8, 20],
+  ["🌸", 85.2, 79.6, 19],
+  ["🌸", 78.4, 85.7, 16],
+  ["🌸", 71.6, 91.3, 13]
+];
+var STARPOS = [
+  [24.2, 42.6, 18], [75.5, 43.5, 15], [40.6, 20.0, 14],
+  [75.2, 53.5, 16], [9.0, 50.4, 13]
+];
+var starsState = STARPOS.map(function () {
+  return { phase: Math.random() * 6.28, speed: 0.05 + Math.random() * 0.06 };
+});
+
+function askFactor() {
+  var f = Math.min(askCv.clientWidth / 620, askCv.clientHeight / 460);
+  return Math.max(0.5, Math.min(1.6, f));
+}
+
+function sizeAskCv() {
+  askCv.width = askCv.clientWidth;
+  askCv.height = askCv.clientHeight;
+}
+
+/* ----- 从底边飘上去的微信贴纸 ----- */
+var floats = [], floatI = 0, lastSpawn = 0;
+function spawnFloat(w, h) {
+  var f = askFactor();
+  var key = CFG.floats[floatI++ % CFG.floats.length];
+  var im = imgs[key];
+  var s = Math.min(46 * f, im.naturalWidth || 46 * f);
+  floats.push({
+    im: im, x: 70 + Math.random() * (w - 140), y: h - 10,
+    vy: -(0.6 + Math.random() * 0.8) * f, life: 1, s: s
+  });
+}
+
+function askLoop(now) {
+  if (ask.classList.contains("gone")) return;   // 已切烟花页，本页动画停
+  var w = askCv.clientWidth, h = askCv.clientHeight;
+  var f = askFactor();
+  actx.clearRect(0, 0, w, h);
+  actx.textAlign = "center";
+  actx.textBaseline = "middle";
+
+  for (var i = 0; i < DECO.length; i++) {
+    var d = DECO[i];
+    actx.font = Math.round(d[3] * f) + "px sans-serif";
+    actx.fillText(d[0], d[1] / 100 * w, d[2] / 100 * h);
+  }
+  for (var j = 0; j < STARPOS.length; j++) {
+    var st = starsState[j];
+    st.phase += st.speed * 4;
+    var k = 0.55 + 0.45 * Math.sin(st.phase);
+    actx.font = Math.max(8, Math.round(STARPOS[j][2] * f * k)) + "px sans-serif";
+    actx.fillText("✨", STARPOS[j][0] / 100 * w, STARPOS[j][1] / 100 * h);
+  }
+
+  if (now - lastSpawn > 1600 && CFG.floats.length) {
+    spawnFloat(w, h);
+    lastSpawn = now;
+  }
+  var alive = [];
+  for (var m = 0; m < floats.length; m++) {
+    var fl = floats[m];
+    fl.y += fl.vy;
+    fl.life -= 0.008;
+    if (fl.life <= 0 || fl.y < 60) continue;
+    fl.x += Math.sin(fl.life * 7) * 0.6;
+    actx.globalAlpha = Math.max(0, Math.min(1, fl.life));
+    actx.drawImage(fl.im, fl.x - fl.s / 2, fl.y - fl.s / 2, fl.s, fl.s);
+    actx.globalAlpha = 1;
+    alive.push(fl);
+  }
+  floats = alive;
+  requestAnimationFrame(askLoop);
+}
+sizeAskCv();
+requestAnimationFrame(askLoop);
+window.addEventListener("resize", sizeAskCv);
+
+/* ================= 烟花页 ================= */
+var fwCv = document.getElementById("fw");
+var fctx = fwCv.getContext("2d");
+var DPR = Math.min(2, window.devicePixelRatio || 1);
+var W = 0, H = 0, FS = 0;               // FS：主标题字号基准
+var bgCv = document.createElement("canvas");
+var bgx = bgCv.getContext("2d");
+var fwStars = [], rockets = [], parts = [], waves = [], sparks = [], pops = [];
+var fwFrame = 0, countLeft = CFG.countdownFrom;
+var countTxt = "", countColor = "#8a7fb8", fwOn = false;
+
+var PALETTE = ["#ff5f6d", "#ffc371", "#ff9a9e", "#fbc2eb", "#a18cd1", "#84fab0",
+               "#8fd3f4", "#ffd700", "#ff6b6b", "#4facfe", "#f6d365", "#fda085"];
+var GOLD = ["#ffe9a8", "#ffd166", "#fff4d6", "#ffc371"];
+var KINDS = ["sphere", "sphere", "ring", "willow", "heart", "double"];
+var GROW = [0, 0, 1, 2, 3, 3], HOLD_T = 60, SHRINK = [3, 2, 1, 0];
+
+function fade(c, ratio) {               // ratio 1=原色 0=全黑
+  ratio = Math.max(0, Math.min(1, ratio));
+  var r = parseInt(c.slice(1, 3), 16), g = parseInt(c.slice(3, 5), 16),
+      b = parseInt(c.slice(5, 7), 16);
+  return "rgb(" + Math.round(r * ratio) + "," + Math.round(g * ratio) + "," +
+         Math.round(b * ratio) + ")";
+}
+
+function resetScene() {
+  W = fwCv.clientWidth; H = fwCv.clientHeight;
+  fwCv.width = Math.round(W * DPR); fwCv.height = Math.round(H * DPR);
+  fctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  FS = Math.max(30, Math.min(W, H) / 11.74);
+
+  bgCv.width = Math.round(W * DPR); bgCv.height = Math.round(H * DPR);
+  bgx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  bgx.clearRect(0, 0, W, H);
+  fctx.fillStyle = "#1b1035";                  // 先整屏压黑，避免首帧露出问询页
+  fctx.fillRect(0, 0, W, H);
+
+  var mx = W * 0.84, my = H * 0.15, mr = Math.min(W, H) * 0.045;
+  for (var i = 5; i > 0; i--) {                              // 月亮光晕
+    bgx.fillStyle = fade("#4a3f7a", 0.45 / i);
+    bgx.beginPath(); bgx.arc(mx, my, mr * (1 + i * 0.30), 0, 6.283); bgx.fill();
+  }
+  bgx.fillStyle = "#fff3c4";
+  bgx.beginPath(); bgx.arc(mx, my, mr, 0, 6.283); bgx.fill();
+
+  var x = 0;                                                 // 城市剪影
+  while (x < W) {
+    var bw = W * (0.025 + Math.random() * 0.05);
+    var bh = H * (0.05 + Math.random() * 0.12);
+    bgx.fillStyle = "#0b0b1a";
+    bgx.fillRect(x, H - bh, bw, bh);
+    var nw = Math.floor(Math.random() * 7);
+    for (var wi = 0; wi < nw; wi++) {                        // 窗户灯
+      bgx.fillStyle = Math.random() < 0.5 ? "#ffd98a" :
+                      (Math.random() < 0.5 ? "#ffe9b0" : "#7fd8ff");
+      bgx.fillRect(x + 5 + Math.random() * Math.max(1, bw - 12),
+                   H - bh + 8 + Math.random() * Math.max(1, bh - 20), 3, 4);
+    }
+    x += bw;
+  }
+
+  fwStars = [];
+  for (var s = 0; s < 150; s++) {
+    fwStars.push({
+      x: Math.random() * W, y: Math.random() * H * 0.70,
+      r: 0.6 + Math.random() * 1.1,
+      base: 0.30 + Math.random() * 0.70,
+      phase: Math.random() * 6.283,
+      speed: 0.02 + Math.random() * 0.05
+    });
+  }
+}
+
+function newRocket() {
+  var x = W * (0.12 + Math.random() * 0.76);
+  var ty = H * (0.08 + Math.random() * 0.34);
+  rockets.push({ x: x, y: H, vy: (ty - H) / (40 + Math.floor(Math.random() * 17)),
+                 target: ty });
+}
+
+function emit(x, y, vx, vy, color, decay, gravity, size) {
+  parts.push({
+    x: x, y: y, px: x, py: y, vx: vx, vy: vy, life: 1,
+    decay: decay !== undefined ? decay : 0.011 + Math.random() * 0.013,
+    gravity: gravity !== undefined ? gravity : 0.065,
+    size: size !== undefined ? size : 1.4 + Math.random() * 1.8,
+    color: color
+  });
+}
+function emitAngle(x, y, ang, spd, color) {
+  emit(x, y, Math.cos(ang) * spd, Math.sin(ang) * spd, color);
+}
+function shockwave(x, y, color) {
+  waves.push({ x: x, y: y, r: 4, life: 1, color: color });
+}
+function newSpark() {
+  sparks.push({ x: Math.random() * W, y: H + 10,
+                vy: -(0.7 + Math.random() * 1.1), life: 1,
+                size: 16 + Math.floor(Math.random() * 19) });
+}
+function burst(x, y) {
+  var main = PALETTE[Math.floor(Math.random() * PALETTE.length)];
+  if (parts.length > 380) { shockwave(x, y, main); return; }   // 防卡
+  var kind = KINDS[Math.floor(Math.random() * KINDS.length)];
+  var i, n, ang;
+  if (kind === "ring") {
+    n = 40 + Math.floor(Math.random() * 19);
+    var spd = 4.0 + Math.random() * 2.2;
+    for (i = 0; i < n; i++) {
+      ang = 6.283 * i / n + (Math.random() - 0.5) * 0.06;
+      emitAngle(x, y, ang, spd * (0.96 + Math.random() * 0.08), main);
+    }
+  } else if (kind === "double") {
+    var second = PALETTE[Math.floor(Math.random() * PALETTE.length)];
+    [[6.4, main], [3.4, second]].forEach(function (pair) {
+      n = 34 + Math.floor(Math.random() * 17);
+      for (i = 0; i < n; i++) {
+        ang = 6.283 * i / n + (Math.random() - 0.5) * 0.1;
+        emitAngle(x, y, ang, pair[0] * (0.95 + Math.random() * 0.1), pair[1]);
+      }
+    });
+  } else if (kind === "willow") {
+    for (i = 0; i < 45 + Math.floor(Math.random() * 16); i++) {
+      emitAngle(x, y, Math.random() * 6.283, 1.0 + Math.random() * 3.6,
+                GOLD[Math.floor(Math.random() * GOLD.length)],
+                0.008 + Math.random() * 0.006, 0.15, 1.6 + Math.random() * 1.4);
+    }
+  } else if (kind === "heart") {
+    for (i = 0; i < 90; i++) {
+      var t = 6.283 * i / 90;
+      var hx = 16 * Math.pow(Math.sin(t), 3);
+      var hy = -(13 * Math.cos(t) - 5 * Math.cos(2 * t) -
+                2 * Math.cos(3 * t) - Math.cos(4 * t));
+      var k = 0.22 + Math.random() * 0.07;
+      emit(x, y, hx * k, hy * k,
+           PALETTE[Math.floor(Math.random() * PALETTE.length)],
+           0.010 + Math.random() * 0.008);
+    }
+  } else {                                        // 球形
+    for (i = 0; i < 55 + Math.floor(Math.random() * 31); i++) {
+      emitAngle(x, y, Math.random() * 6.283, 1.2 + Math.random() * 5.8, main);
+    }
+  }
+  shockwave(x, y, main);
+}
+
+/* ----- 烟花页炸出来的表情：小→大→悬停→缩小 ----- */
+function spawnPop() {
+  if (!CFG.fire.length || pops.length >= 3) return;
+  var f = CFG.fire[Math.floor(Math.random() * CFG.fire.length)];
+  var im = imgs[f.pet || f.stk];
+  var x = W * (0.13 + Math.random() * 0.74);
+  var y = H * (0.20 + Math.random() * 0.38);
+  burst(x, y);                      // 先借普通烟花那一下爆开
+  pops.push({ im: im, x: x, y: y, t: 0, sway: Math.random() * 6.28,
+              n: im.naturalWidth || 112 });
+}
+
+function fwStep() {
+  fwFrame += 1;
+  if (fwFrame % 32 === 0) newRocket();
+  if (fwFrame % 18 === 0) newSpark();
+  if (fwFrame % 72 === 0) spawnPop();
+  if (fwFrame % 50 === 0) {
+    countLeft -= 1;
+    if (countLeft > 0) {
+      countTxt = "敌军还有 " + countLeft + " 秒到达战场"; countColor = "#8a7fb8";
+    } else if (countLeft > -4) {
+      countTxt = "嘻嘻！"; countColor = "#ff6b6b";
+    } else {
+      countLeft = CFG.countdownFrom;
+      countTxt = "敌军还有 " + countLeft + " 秒到达战场"; countColor = "#8a7fb8";
+    }
+  }
+
+  /* —— 升空 —— */
+  var i, r, alive = [];
+  for (i = 0; i < rockets.length; i++) {
+    r = rockets[i];
+    r.y += r.vy;
+    if (r.y <= r.target) { burst(r.x, r.y); continue; }
+    alive.push(r);
+  }
+  rockets = alive;
+
+  /* —— 绘制：静态背景 → 闪星 → 火箭 → 粒子 → 冲击波 → 余烬 → 表情 —— */
+  fctx.drawImage(bgCv, 0, 0, W, H);
+  for (i = 0; i < fwStars.length; i++) {
+    var st = fwStars[i];
+    st.phase += st.speed;
+    var k = 0.55 + 0.45 * Math.sin(st.phase);
+    fctx.fillStyle = fade("#ffffff", st.base * k);
+    fctx.beginPath(); fctx.arc(st.x, st.y, st.r, 0, 6.283); fctx.fill();
+  }
+  fctx.lineCap = "round";
+  for (i = 0; i < rockets.length; i++) {                       // 升空流星
+    r = rockets[i];
+    fctx.strokeStyle = "#fff8d6"; fctx.lineWidth = 2;
+    fctx.beginPath(); fctx.moveTo(r.x, r.y + 8); fctx.lineTo(r.x, r.y); fctx.stroke();
+  }
+
+  alive = [];                                                  // 爆炸粒子
+  for (i = 0; i < parts.length; i++) {
+    var p = parts[i];
+    p.px = p.x; p.py = p.y;
+    p.x += p.vx; p.y += p.vy;
+    p.vy += p.gravity;
+    p.vx *= 0.985; p.vy *= 0.985;
+    p.life -= p.decay;
+    if (p.life <= 0) continue;
+    fctx.strokeStyle = fade(p.color, p.life);
+    fctx.lineWidth = Math.max(1, p.size * p.life * 0.9);
+    fctx.beginPath(); fctx.moveTo(p.px, p.py); fctx.lineTo(p.x, p.y); fctx.stroke();
+    alive.push(p);
+  }
+  parts = alive;
+
+  alive = [];                                                  // 冲击波
+  for (i = 0; i < waves.length; i++) {
+    var wv = waves[i];
+    wv.r += 11; wv.life -= 0.075;
+    if (wv.life <= 0) continue;
+    fctx.strokeStyle = fade(wv.color, wv.life);
+    fctx.lineWidth = Math.max(1, Math.round(3 * wv.life));
+    fctx.beginPath(); fctx.arc(wv.x, wv.y, wv.r, 0, 6.283); fctx.stroke();
+    alive.push(wv);
+  }
+  waves = alive;
+
+  alive = [];                                                  // 金色余烬
+  fctx.textAlign = "center"; fctx.textBaseline = "middle";
+  for (i = 0; i < sparks.length; i++) {
+    var sp = sparks[i];
+    sp.y += sp.vy; sp.life -= 0.006;
+    if (sp.life <= 0) continue;
+    fctx.fillStyle = fade("#ffd166", sp.life);
+    fctx.font = sp.size + "px sans-serif";
+    fctx.fillText("·", sp.x, sp.y);
+    alive.push(sp);
+  }
+  sparks = alive;
+
+  alive = [];                                                  // 表情一朵朵炸出来
+  for (i = 0; i < pops.length; i++) {
+    var pp = pops[i], t = pp.t;
+    var sizes = [pp.n / 3, pp.n / 2, pp.n, pp.n * 2];
+    if (t < GROW.length) {
+      fctx.drawImage(pp.im, pp.x - sizes[GROW[t]] / 2, pp.y - sizes[GROW[t]] / 2,
+                     sizes[GROW[t]], sizes[GROW[t]]);
+    } else if (t < GROW.length + HOLD_T) {
+      pp.y -= 0.35;                 // 悬在空中慢慢往上飘
+      pp.x += Math.sin(t * 0.06 + pp.sway) * 0.5;
+      fctx.drawImage(pp.im, pp.x - pp.n / 2, pp.y - pp.n / 2, pp.n, pp.n);
+    } else {
+      var kk = t - GROW.length - HOLD_T;
+      if (kk >= SHRINK.length) continue;
+      fctx.drawImage(pp.im, pp.x - sizes[SHRINK[kk]] / 2, pp.y - sizes[SHRINK[kk]] / 2,
+                     sizes[SHRINK[kk]], sizes[SHRINK[kk]]);
+    }
+    pp.t += 1;
+    alive.push(pp);
+  }
+  pops = alive;
+
+  /* —— 文字永远浮在最上面（霓虹发光：外光晕 → 金身 → 白亮核） —— */
+  var cx = W / 2, cy = H * 0.36;
+  var fonts = "'PingFang SC','Microsoft YaHei',sans-serif";
+  var breath = 0.72 + 0.28 * Math.sin(fwFrame * 0.06);
+  fctx.textAlign = "center"; fctx.textBaseline = "middle";
+  fctx.save();
+  fctx.shadowColor = "#ff9d2f";
+  fctx.shadowBlur = Math.max(18, FS * 0.30);
+  fctx.fillStyle = "#c98f1e";
+  fctx.font = "bold " + Math.round(FS * 1.21) + "px " + fonts;
+  fctx.fillText("上号！", cx, cy);                          // 第一层：金色大光晕
+  fctx.shadowBlur = Math.max(8, FS * 0.13);
+  fctx.fillStyle = fade("#ffd700", breath);
+  fctx.font = "bold " + Math.round(FS) + "px " + fonts;
+  fctx.fillText("上号！", cx, cy);                          // 第二层：金身呼吸
+  fctx.shadowBlur = 0;
+  fctx.fillStyle = fade("#fff7d0", 0.82 + 0.18 * Math.sin(fwFrame * 0.06));
+  fctx.fillText("上号！", cx, cy);                          // 第三层：白亮核
+  fctx.restore();
+
+  fctx.save();
+  fctx.shadowColor = "#3ec6ff";
+  fctx.shadowBlur = Math.max(6, FS * 0.10);
+  fctx.fillStyle = fade("#a5ecff", 0.72 + 0.28 * Math.sin(fwFrame * 0.04));
+  fctx.font = "bold " + Math.max(16, Math.round(FS * 0.42)) + "px " + fonts;
+  fctx.fillText("来一把激情刺激的王者荣耀", cx, cy + FS * 1.39);   // 副题：蓝霓虹
+  fctx.shadowBlur = 0;
+  fctx.fillStyle = "#d9f7ff";
+  fctx.fillText("来一把激情刺激的王者荣耀", cx, cy + FS * 1.39);
+  fctx.restore();
+
+  fctx.save();
+  fctx.shadowColor = (countColor === "#ff6b6b") ? "#ff8f8f" : "#a78bfa";
+  fctx.shadowBlur = Math.max(6, FS * 0.09);
+  fctx.fillStyle = countColor;
+  fctx.font = Math.max(13, Math.round(FS * 0.24)) + "px " + fonts;
+  fctx.fillText(countTxt, cx, cy + FS * 2.08);               // 倒计时：紫/红霓虹
+  fctx.restore();
+
+  fctx.fillStyle = "#4a3f7a";
+  fctx.font = Math.max(9, Math.round(FS * 0.145)) + "px " + fonts;
+  fctx.fillText("在微信里返回即可退出", cx, H - 30);
+}
+
+var lastTs = 0;
+function fwLoop(now) {
+  if (!fwOn) return;
+  while (now - lastTs >= 20) {
+    fwStep();
+    lastTs += 20;
+    if (now - lastTs > 200) { lastTs = now; break; }   // 切后台回来别狂补帧
+  }
+  requestAnimationFrame(fwLoop);
+}
+
+function startFireworks() {
+  if (fwOn) return;
+  fwOn = true;
+  if (!demo) {                             // 电脑浏览器顺手全屏；手机微信不支持就跳过
+    try {
+      var de = document.documentElement;
+      var req = de.requestFullscreen || de.webkitRequestFullscreen;
+      if (req) { var pr = req.call(de); if (pr && pr.catch) pr.catch(function () {}); }
+    } catch (e) {}
+  }
+  fwCv.style.display = "block";
+  resetScene();
+  rockets = []; parts = []; waves = []; sparks = []; pops = [];
+  fwFrame = 0; countLeft = CFG.countdownFrom;
+  countTxt = "敌军还有 " + countLeft + " 秒到达战场"; countColor = "#8a7fb8";
+  newRocket(); newRocket();
+  spawnPop();                              // 一进来就先炸一朵表情
+  lastTs = performance.now();
+  requestAnimationFrame(fwLoop);
+}
+
+window.addEventListener("resize", function () {
+  if (fwOn) resetScene();   // 只重建背景画布；正在飞的粒子保留，别把整场烟花清空
+});
+document.addEventListener("keydown", function (e) {
+  if (e.key === "Escape" && document.fullscreenElement) {
+    try { document.exitFullscreen(); } catch (err) {}
+  }
+});
+
+/* 本地测试辅助：?demo=dislike 自动点 3 次不喜欢；?demo=like 自动点喜欢（正常打开无效） */
+var demo = new URLSearchParams(location.search).get("demo");
+if (demo === "dislike") {
+  for (var d = 0; d < 3; d++) {
+    setTimeout(function () { disBtn.click(); }, 800 + d * 600);
+  }
+} else if (demo === "like") {
+  setTimeout(function () { likeBtn.click(); }, 800);
+}
+</script>
+</body>
+</html>

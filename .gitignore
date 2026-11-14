@@ -1,0 +1,8 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+
+# 生成出来的二维码（含你自己的托管地址）
+web/qrcode.png
+web/qrcode_merged.png
